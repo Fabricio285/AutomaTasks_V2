@@ -1,0 +1,1 @@
+// Este archivo ya no es necesario. Por favor, usa index.js
