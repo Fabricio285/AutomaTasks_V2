@@ -38,4 +38,5 @@ export interface Task {
   acceptedAt?: string;
   completedAt?: string;
   realDurationMinutes?: number;
+  progressNotes?: string;
 }
