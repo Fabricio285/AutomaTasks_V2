@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { User, Task, TaskStatus, AppSettings } from '../types';
-import { calculateWorkingMinutes, formatDuration } from '../utils/time';
-import { supabase } from '../lib/supabase';
+import { User, Task, TaskStatus, AppSettings } from '../types.ts';
+import { calculateWorkingMinutes, formatDuration } from '../utils/time.ts';
+import { supabase } from '../lib/supabase.ts';
 
 interface Props { currentUser: User; tasks: Task[]; setTasks: any; settings: AppSettings; }
 
