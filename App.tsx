@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { User, Task, AppSettings, Role, TaskStatus } from './types';
-import { AdminDashboard } from './components/AdminDashboard';
-import { UserDashboard } from './components/UserDashboard';
-import { Login } from './components/Login';
-import { SettingsPanel } from './components/SettingsPanel';
-import { supabase } from './lib/supabase';
+import { User, Task, AppSettings, Role, TaskStatus } from './types.ts';
+import { AdminDashboard } from './components/AdminDashboard.tsx';
+import { UserDashboard } from './components/UserDashboard.tsx';
+import { Login } from './components/Login.tsx';
+import { SettingsPanel } from './components/SettingsPanel.tsx';
+import { supabase } from './lib/supabase.ts';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -122,7 +122,7 @@ const App: React.FC = () => {
       <main className="container mx-auto p-4 flex-grow">
         {view === 'SETTINGS' ? (
           <SettingsPanel settings={settings!} onSave={async (s: AppSettings) => {
-             await supabase.from('settings').update({ storage_path: s.storagePath, working_days: s.working_days }).eq('id', 1);
+             await supabase.from('settings').update({ storage_path: s.storagePath, working_days: s.workingDays }).eq('id', 1);
              setSettings(s);
              alert('Ajustes guardados correctamente.');
           }} onExport={() => {}} />
