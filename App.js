@@ -12,7 +12,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // --- CONSTANTES ---
 const Role = { ADMIN: 'ADMIN', USER: 'USER' };
 const TaskStatus = { PENDING: 'PENDING', ACCEPTED: 'ACCEPTED', COMPLETED: 'COMPLETED' };
-const VERSION = "V1.4.1";
+const VERSION = "V1.4.2";
 
 const DEFAULT_WORKING_DAYS = {
   0: { enabled: false, start: '08:00', end: '17:00' },
@@ -219,14 +219,19 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
   return html`
     <div className="space-y-6">
       <div className="flex gap-2 p-1.5 bg-white border border-slate-200 rounded-2xl w-fit mx-auto sm:mx-0 sticky top-20 z-40 shadow-sm backdrop-blur-md">
-        <button onClick=${() => setView('TASKS')} className=${`px-5 py-2 rounded-xl text-xs font-black uppercase transition-all ${view === 'TASKS' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>Obras</button>
-        <button onClick=${() => setView('USERS')} className=${`px-5 py-2 rounded-xl text-xs font-black uppercase transition-all ${view === 'USERS' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>Personal</button>
-        <button onClick=${() => setView('SETTINGS')} className=${`px-5 py-2 rounded-xl text-xs font-black uppercase transition-all ${view === 'SETTINGS' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>Ajustes</button>
+        <button onClick=${() => setView('TASKS')} className=${`px-5 py-2 rounded-xl text-xs font-black uppercase transition-all ${view === 'TASKS' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Obras</button>
+        <button onClick=${() => setView('USERS')} className=${`px-5 py-2 rounded-xl text-xs font-black uppercase transition-all ${view === 'USERS' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Personal</button>
+        <button onClick=${() => setView('SETTINGS')} className=${`px-5 py-2 rounded-xl text-xs font-black uppercase transition-all ${view === 'SETTINGS' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Ajustes</button>
       </div>
 
       ${view === 'TASKS' && html`
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm animate-fade-in">
-          <div className="p-6 flex justify-between items-center border-b bg-slate-50/50"><h2 className="font-black text-slate-800 uppercase italic">Control General</h2><button onClick=${() => { setTaskForm({title:'', description:'', assigned_to:'', estimated_time: 1}); setModalTask({show:true, mode:'create'}); }} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-indigo-100">+ Nueva Obra</button></div>
+          <div className="p-6 flex justify-between items-center border-b bg-slate-50/50">
+            <h2 className="font-black text-slate-800 uppercase italic">Control General</h2>
+            <button onClick=${() => { setTaskForm({title:'', description:'', assigned_to:'', estimated_time: 1}); setModalTask({show:true, mode:'create'}); }} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-indigo-100 active:scale-95 transition-all">
+              + Nueva Obra
+            </button>
+          </div>
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
             ${tasks.map(t => {
               const eff = t.efficiency || 100;
@@ -259,6 +264,10 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
 
       ${view === 'USERS' && html`
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm animate-fade-in">
+          <div className="p-6 flex justify-between items-center border-b bg-slate-50/50">
+            <h2 className="font-black text-slate-800 uppercase italic">Nómina</h2>
+            <button onClick=${() => { setUserForm({username:'', password:'', role:Role.USER}); setModalUser({show:true, mode:'create'}); }} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-indigo-100">+ Operario</button>
+          </div>
           <table className="w-full text-left">
             <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b"><tr><th className="p-6">Operario</th><th className="p-6">Eficiencia Media</th><th className="p-6 text-right">Gestión</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
@@ -281,6 +290,52 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
         </div>
       `}
 
+      <!-- FORMULARIO MODAL USUARIO -->
+      ${modalUser.show && html`
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[40px] w-full max-w-sm shadow-2xl p-10 animate-fade-in-up">
+            <h2 className="text-2xl font-black mb-8 italic uppercase text-indigo-700">${modalUser.mode === 'create' ? 'Alta Operario' : 'Modificar Perfil'}</h2>
+            <form onSubmit=${saveUser} className="space-y-4">
+              <input className="w-full bg-slate-50 p-4 rounded-2xl outline-none border border-slate-100 font-bold" placeholder="Nombre de Usuario" value=${userForm.username} onChange=${e => setUserForm({...userForm, username: e.target.value})} required />
+              <input className="w-full bg-slate-50 p-4 rounded-2xl outline-none border border-slate-100 font-bold" type="password" placeholder="Contraseña" value=${userForm.password} onChange=${e => setUserForm({...userForm, password: e.target.value})} required />
+              <select className="w-full bg-slate-50 p-4 rounded-2xl outline-none border border-slate-100 font-bold text-xs" value=${userForm.role} onChange=${e => setUserForm({...userForm, role: e.target.value})}>
+                <option value=${Role.USER}>OPERARIO DE TALLER</option>
+                <option value=${Role.ADMIN}>ADMINISTRADOR SISTEMA</option>
+              </select>
+              <div className="flex gap-3 pt-6">
+                <button type="button" onClick=${() => setModalUser({show:false})} className="flex-1 bg-slate-100 py-4 rounded-2xl font-black text-xs uppercase">Cancelar</button>
+                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg shadow-indigo-100">Guardar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `}
+
+      <!-- FORMULARIO MODAL OBRA -->
+      ${modalTask.show && html`
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[40px] w-full max-w-md shadow-2xl p-10 animate-fade-in-up">
+            <h2 className="text-2xl font-black mb-8 italic uppercase text-indigo-700">Nueva Obra</h2>
+            <form onSubmit=${saveTask} className="space-y-5">
+              <input className="w-full bg-slate-50 p-4 rounded-2xl border border-slate-100 font-bold" placeholder="Título de la Obra" value=${taskForm.title} onChange=${e => setTaskForm({...taskForm, title: e.target.value})} required />
+              <div className="grid grid-cols-2 gap-4">
+                <select className="w-full bg-slate-50 p-4 rounded-2xl border border-slate-100 font-bold text-xs" value=${taskForm.assigned_to} onChange=${e => setTaskForm({...taskForm, assigned_to: e.target.value})} required>
+                  <option value="">RESPONSABLE</option>
+                  ${users.filter(u => u.role === Role.USER).map(u => html`<option key=${u.id} value=${u.id}>${u.username.toUpperCase()}</option>`)}
+                </select>
+                <input type="number" step="0.5" className="w-full bg-slate-50 p-4 rounded-2xl border border-slate-100 font-bold" placeholder="Horas Est." value=${taskForm.estimated_time} onChange=${e => setTaskForm({...taskForm, estimated_time: parseFloat(e.target.value)})} required />
+              </div>
+              <textarea className="w-full bg-slate-50 p-4 rounded-2xl border border-slate-100 min-h-[100px] text-sm" placeholder="Alcance de obra..." value=${taskForm.description} onChange=${e => setTaskForm({...taskForm, description: e.target.value})} required />
+              <div className="flex gap-3 pt-6">
+                <button type="button" onClick=${() => setModalTask({show:false})} className="flex-1 bg-slate-100 py-4 rounded-2xl font-black text-xs uppercase">Cancelar</button>
+                <button type="submit" className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg shadow-indigo-100">Lanzar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `}
+
+      <!-- BITÁCORA MODAL -->
       ${modalNotes.show && html`
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-[40px] w-full max-w-xl shadow-2xl p-10 animate-fade-in-up">
