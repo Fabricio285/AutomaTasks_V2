@@ -13,7 +13,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // --- CONSTANTES ---
 const Role = { ADMIN: 'ADMIN', USER: 'USER' };
 const TaskStatus = { PENDING: 'PENDING', ACCEPTED: 'ACCEPTED', COMPLETED: 'COMPLETED' };
-const VERSION = "V1.5.1";
+const VERSION = "V1.5.2";
 
 // --- UTILS ---
 const formatDuration = (ms) => {
@@ -181,13 +181,13 @@ const UserDashboard = ({ currentUser, tasks = [], setTasks, notify }) => {
                              </div>
                            </div>
                          ` : html`
-                           <>
+                           <${React.Fragment}>
                              <p className="text-sm text-slate-700 leading-relaxed">${n.text}</p>
                              <div className="flex justify-between items-center mt-2 border-t border-slate-50 pt-1">
                                <p className="text-[9px] text-slate-400 font-bold italic">${new Date(n.date).toLocaleString()}</p>
                                ${t.status !== TaskStatus.COMPLETED && html`<button onClick=${() => setEditingNote({taskId: t.id, index: i, text: n.text})} className="opacity-0 group-hover:opacity-100 text-indigo-500 text-[9px] font-black uppercase transition-opacity">Editar Nota</button>`}
                              </div>
-                           </>
+                           </${React.Fragment}>
                          `}
                        </div>
                      `})}
