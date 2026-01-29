@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { User, Task, Role, TaskStatus, AppSettings } from '../types';
-import { formatDuration } from '../utils/time';
-import { supabase } from '../lib/supabase';
+import { User, Task, Role, TaskStatus, AppSettings } from '../types.ts';
+import { formatDuration } from '../utils/time.ts';
+import { supabase } from '../lib/supabase.ts';
 
 interface Props { 
   users: User[]; 
