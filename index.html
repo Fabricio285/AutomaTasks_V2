@@ -5,30 +5,67 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TaskFlow Manager Cloud</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Cargamos Babel para que el navegador entienda TypeScript y JSX en GitHub Pages -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script type="importmap">
-    {
-      "imports": {
-        "react": "https://esm.sh/react@^19.2.4",
-        "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-        "react/": "https://esm.sh/react@^19.2.4/",
-        "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.93.3"
-      }
-    }
-    </script>
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.45.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/"
+  }
+}
+</script>
+    <style>
+        #error-console {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: #fee2e2;
+            border: 2px solid #ef4444;
+            color: #b91c1c;
+            padding: 15px;
+            border-radius: 12px;
+            font-family: monospace;
+            z-index: 9999;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+    </style>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen">
     <div id="root">
-        <!-- Spinner de carga inicial mientras Babel procesa el código -->
         <div class="h-screen flex items-center justify-center bg-indigo-900 text-white font-bold">
             <div class="flex flex-col items-center gap-4">
                 <div class="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent"></div>
                 <p class="animate-pulse">Iniciando aplicación...</p>
+                <p class="text-[10px] opacity-50 font-normal">Si tarda demasiado, revisa la consola (F12)</p>
             </div>
         </div>
     </div>
-    <!-- Usamos type="text/babel" y data-presets para que Babel procese el archivo -->
+
+    <div id="error-console">
+        <div class="font-bold mb-1 underline">Error al cargar la aplicación:</div>
+        <div id="error-message"></div>
+        <button onclick="location.reload()" class="mt-2 bg-red-600 text-white px-3 py-1 rounded text-xs">Reintentar</button>
+    </div>
+
+    <script>
+        // Capturador de errores global para mostrar en pantalla
+        window.onerror = function(msg, url, line) {
+            document.getElementById('error-console').style.display = 'block';
+            document.getElementById('error-message').textContent = msg + ' en ' + url + ':' + line;
+            return false;
+        };
+        window.addEventListener('unhandledrejection', function(event) {
+            document.getElementById('error-console').style.display = 'block';
+            document.getElementById('error-message').textContent = 'Error de promesa: ' + event.reason;
+        });
+    </script>
+
     <script type="text/babel" data-presets="react,typescript" data-type="module" src="./index.tsx"></script>
 </body>
 </html>
