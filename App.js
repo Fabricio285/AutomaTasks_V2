@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import htm from 'htm';
 import { createClient } from '@supabase/supabase-js';
