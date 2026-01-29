@@ -1,5 +1,0 @@
-{
-  "name": "TaskFlow Manager",
-  "description": "A comprehensive task and user management system with business hours calculation and JSON persistence simulation.",
-  "requestFramePermissions": []
-}
