@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AppSettings } from '../types';
+import { AppSettings } from '../types.ts';
 
 export const SettingsPanel: React.FC<{ settings: AppSettings, onSave: any, onExport: any }> = ({ settings, onSave }) => {
   const [local, setLocal] = useState(settings);
