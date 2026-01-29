@@ -5,19 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TaskFlow Manager Cloud</title>
     <script src="https://cdn.tailwindcss.com"></script>
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@^19.2.4",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.93.3"
-  }
-}
-</script>
+    <!-- Cargamos Babel para que el navegador entienda TypeScript y JSX en GitHub Pages -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@^19.2.4",
+        "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+        "react/": "https://esm.sh/react@^19.2.4/",
+        "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.93.3"
+      }
+    }
+    </script>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen">
-    <div id="root"></div>
-    <script type="module" src="./index.tsx"></script>
+    <div id="root">
+        <!-- Spinner de carga inicial mientras Babel procesa el código -->
+        <div class="h-screen flex items-center justify-center bg-indigo-900 text-white font-bold">
+            <div class="flex flex-col items-center gap-4">
+                <div class="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent"></div>
+                <p class="animate-pulse">Iniciando aplicación...</p>
+            </div>
+        </div>
+    </div>
+    <!-- Usamos type="text/babel" y data-presets para que Babel procese el archivo -->
+    <script type="text/babel" data-presets="react,typescript" data-type="module" src="./index.tsx"></script>
 </body>
 </html>
