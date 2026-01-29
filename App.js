@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import htm from 'htm';
 import { createClient } from '@supabase/supabase-js';
 
@@ -12,7 +12,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // --- CONSTANTES ---
 const Role = { ADMIN: 'ADMIN', USER: 'USER' };
 const TaskStatus = { PENDING: 'PENDING', ACCEPTED: 'ACCEPTED', COMPLETED: 'COMPLETED' };
-const VERSION = "V1.4.6";
+const VERSION = "V1.5.0";
 
 // --- UTILS ---
 const formatDuration = (ms) => {
@@ -84,6 +84,7 @@ const Timer = ({ startTime }) => {
 
 const UserDashboard = ({ currentUser, tasks = [], setTasks, notify }) => {
   const [activeNote, setActiveNote] = useState({});
+  const [editingNote, setEditingNote] = useState({ taskId: null, index: null, text: '' });
   const myTasks = tasks.filter(t => t.assigned_to === currentUser.id);
 
   const updateStatus = async (id, status, extra = {}) => {
@@ -95,8 +96,6 @@ const UserDashboard = ({ currentUser, tasks = [], setTasks, notify }) => {
     if (!error && data) {
       setTasks(tasks.map(t => t.id === id ? data[0] : t));
       notify(status === TaskStatus.COMPLETED ? 'Obra finalizada' : 'Obra iniciada', 'success');
-    } else if (error) {
-      notify('Error al guardar: ' + error.message, 'error');
     }
   };
 
@@ -112,6 +111,20 @@ const UserDashboard = ({ currentUser, tasks = [], setTasks, notify }) => {
       setTasks(tasks.map(t => t.id === id ? data[0] : t));
       setActiveNote({ ...activeNote, [id]: '' });
       notify('Nota guardada', 'success');
+    }
+  };
+
+  const updateExistingNote = async (id) => {
+    if (!editingNote.text.trim()) return notify('Nota vacía', 'error');
+    const task = tasks.find(t => t.id === id);
+    let notes = [];
+    try { notes = JSON.parse(task.progress_notes || '[]'); } catch (e) {}
+    notes[editingNote.index].text = editingNote.text;
+    const { data, error } = await supabase.from('tasks').update({ progress_notes: JSON.stringify(notes) }).eq('id', id).select();
+    if (!error && data) {
+      setTasks(tasks.map(t => t.id === id ? data[0] : t));
+      setEditingNote({ taskId: null, index: null, text: '' });
+      notify('Nota actualizada', 'success');
     }
   };
 
@@ -144,26 +157,52 @@ const UserDashboard = ({ currentUser, tasks = [], setTasks, notify }) => {
             </div>
             <div className="p-6 bg-slate-50/50">
                <p className="text-sm text-slate-600 mb-6 bg-white p-4 rounded-2xl border border-slate-100">${t.description}</p>
-               ${t.status === TaskStatus.PENDING ? html`<button onClick=${() => updateStatus(t.id, TaskStatus.ACCEPTED, { accepted_at: new Date().toISOString() })} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-100 active:scale-95 uppercase text-xs">Aceptar y Cronometrar</button>` : html`
-                 <div className="space-y-6">
-                   <div className="space-y-3">
-                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Historial</h4>
-                     <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                       ${noteHistory.length === 0 ? html`<p className="text-[10px] text-slate-400 italic px-1 uppercase font-bold">Sin notas</p>` : noteHistory.map((n, i) => html`
-                         <div key=${i} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm"><p className="text-sm text-slate-700">${n.text}</p><p className="text-[9px] text-slate-400 mt-1 font-bold">${new Date(n.date).toLocaleString()}</p></div>
-                       `)}
-                     </div>
+               
+               <div className="space-y-6">
+                 <div className="space-y-3">
+                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Historial</h4>
+                   <div className="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                     ${noteHistory.length === 0 ? html`<p className="text-[10px] text-slate-400 italic px-1 uppercase font-bold">Sin notas</p>` : noteHistory.map((n, i) => html`
+                       <div key=${i} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm relative group">
+                         ${editingNote.taskId === t.id && editingNote.index === i ? html`
+                           <div className="space-y-2">
+                             <textarea value=${editingNote.text} onChange=${e => setEditingNote({...editingNote, text: e.target.value})} className="w-full text-sm p-2 bg-slate-50 rounded-lg border-0 outline-none ring-1 ring-indigo-200" />
+                             <div className="flex gap-2">
+                               <button onClick=${() => updateExistingNote(t.id)} className="text-[9px] font-black bg-indigo-600 text-white px-3 py-1 rounded-md uppercase">Guardar</button>
+                               <button onClick=${() => setEditingNote({taskId:null, index:null, text:''})} className="text-[9px] font-black bg-slate-200 text-slate-500 px-3 py-1 rounded-md uppercase">Cancelar</button>
+                             </div>
+                           </div>
+                         ` : html`
+                           <>
+                             <p className="text-sm text-slate-700">${n.text}</p>
+                             <div className="flex justify-between items-center mt-1">
+                               <p className="text-[9px] text-slate-400 font-bold italic">${new Date(n.date).toLocaleString()}</p>
+                               ${t.status !== TaskStatus.COMPLETED && html`<button onClick=${() => setEditingNote({taskId: t.id, index: i, text: n.text})} className="opacity-0 group-hover:opacity-100 text-indigo-500 text-[9px] font-black uppercase transition-opacity">Editar</button>`}
+                             </div>
+                           </>
+                         `}
+                       </div>
+                     `)}
                    </div>
-                   ${t.status !== TaskStatus.COMPLETED && html`
+                 </div>
+
+                 ${t.status === TaskStatus.PENDING ? html`
+                   <button onClick=${() => updateStatus(t.id, TaskStatus.ACCEPTED, { accepted_at: new Date().toISOString() })} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-100 active:scale-95 uppercase text-xs">Aceptar y Cronometrar</button>
+                 ` : t.status === TaskStatus.ACCEPTED ? html`
+                   <div className="space-y-4">
                      <div className="space-y-3 p-4 bg-white rounded-2xl border border-slate-200">
                        <textarea placeholder="Cargar nota de avance..." value=${activeNote[t.id] || ''} onChange=${e => setActiveNote({...activeNote, [t.id]: e.target.value})} className="w-full p-4 bg-slate-50 border-0 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-100 min-h-[80px]" />
-                       <button onClick=${() => saveNote(t.id)} className="w-full bg-slate-800 text-white py-3 rounded-xl text-[10px] font-black uppercase">Guardar Nota</button>
+                       <button onClick=${() => saveNote(t.id)} className="w-full bg-slate-800 text-white py-3 rounded-xl text-[10px] font-black uppercase">Registrar Nota</button>
                      </div>
                      <button onClick=${() => updateStatus(t.id, TaskStatus.COMPLETED, { completed_at: new Date().toISOString() })} className="w-full border-2 border-emerald-600 text-emerald-600 py-3 rounded-2xl text-[10px] font-black uppercase">Finalizar Obra Definitivamente</button>
-                   `}
-                   ${t.status === TaskStatus.COMPLETED && html`<div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 text-center"><span className=${`block font-black text-2xl ${effColor}`}>${eff}% EFICIENCIA</span></div>`}
-                 </div>
-               `}
+                   </div>
+                 ` : html`
+                   <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
+                     <span className=${`block font-black text-2xl ${effColor}`}>${eff}% EFICIENCIA</span>
+                     <p className="text-[9px] text-emerald-400 font-black uppercase tracking-widest mt-1">Obra Completada</p>
+                   </div>
+                 `}
+               </div>
             </div>
           </div>
         `;
@@ -172,7 +211,7 @@ const UserDashboard = ({ currentUser, tasks = [], setTasks, notify }) => {
   `;
 };
 
-const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, notify, confirm }) => {
+const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, setSettings, notify, confirm }) => {
   const [view, setView] = useState('TASKS');
   const [modalUser, setModalUser] = useState({ show: false, mode: 'create', data: null });
   const [modalTask, setModalTask] = useState({ show: false, mode: 'create', data: null });
@@ -180,6 +219,7 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, notify, co
   
   const [userForm, setUserForm] = useState({ username: '', password: '', role: Role.USER });
   const [taskForm, setTaskForm] = useState({ title: '', description: '', assigned_to: '', estimated_time: 1 });
+  const fileInputRef = useRef(null);
 
   const userStats = useMemo(() => {
     return users.reduce((acc, user) => {
@@ -196,46 +236,67 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, notify, co
       if (modalUser.mode === 'edit') {
         const { data, error } = await supabase.from('users').update(userForm).eq('id', modalUser.data.id).select();
         if (error) throw error;
-        if (data) setUsers(users.map(u => u.id === modalUser.data.id ? data[0] : u));
+        setUsers(users.map(u => u.id === modalUser.data.id ? data[0] : u));
         notify('Usuario actualizado', 'success');
       } else {
         const { data, error } = await supabase.from('users').insert([userForm]).select();
         if (error) throw error;
-        if (data) setUsers([...users, ...data]);
+        setUsers([...users, ...data]);
         notify('Usuario creado', 'success');
       }
       setModalUser({ show: false });
-    } catch (err) {
-      notify('Error: ' + err.message, 'error');
-    }
+    } catch (err) { notify('Error: ' + err.message, 'error'); }
   };
 
   const saveTask = async (e) => {
     e.preventDefault();
     try {
-      // AHORA ENVIAMOS TODAS LAS COLUMNAS PORQUE EL SQL YA LAS CREÓ
-      const taskData = { 
-        ...taskForm,
-        status: TaskStatus.PENDING, 
-        progress_notes: '[]',
-        efficiency: 100
-      };
-      
-      const { data, error } = await supabase.from('tasks').insert([taskData]).select();
-      
-      if (error) {
-        notify('Error DB: ' + error.message, 'error');
-        return;
-      }
+      const { data, error } = await supabase.from('tasks').insert([{ ...taskForm, status: TaskStatus.PENDING, progress_notes: '[]', efficiency: 100 }]).select();
+      if (error) throw error;
+      setTasks([data[0], ...tasks]);
+      notify('Obra registrada', 'success');
+      setModalTask({ show: false });
+    } catch (err) { notify('Error DB: ' + err.message, 'error'); }
+  };
 
-      if (data) {
-        setTasks([data[0], ...tasks]);
-        notify('Obra registrada con éxito', 'success');
-        setModalTask({ show: false });
-      }
-    } catch (err) {
-      notify('Error inesperado', 'error');
-    }
+  const updateSetting = async (day, field, value) => {
+    const newWorkingDays = { ...settings.working_days };
+    newWorkingDays[day][field] = value;
+    const { data, error } = await supabase.from('settings').update({ working_days: newWorkingDays }).eq('id', 1).select();
+    if (!error) setSettings(data[0]);
+  };
+
+  const exportBackup = () => {
+    const backup = { users, tasks, settings, export_date: new Date().toISOString(), version: VERSION };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup_automatizacion_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    notify('Backup descargado', 'success');
+  };
+
+  const importBackup = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+        confirm('¿Restaurar Backup?', 'ADVERTENCIA: Se sobreescribirán todos los datos actuales.', async () => {
+          await supabase.from('tasks').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          await supabase.from('users').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          
+          if (data.users?.length) await supabase.from('users').insert(data.users);
+          if (data.tasks?.length) await supabase.from('tasks').insert(data.tasks);
+          if (data.settings) await supabase.from('settings').update(data.settings).eq('id', 1);
+          
+          window.location.reload();
+        });
+      } catch (err) { notify('Error al leer el archivo', 'error'); }
+    };
+    reader.readAsText(file);
   };
 
   return html`
@@ -243,15 +304,14 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, notify, co
       <div className="flex gap-2 p-1.5 bg-white border border-slate-200 rounded-2xl w-fit mx-auto sm:mx-0 sticky top-20 z-40 shadow-sm backdrop-blur-md">
         <button onClick=${() => setView('TASKS')} className=${`px-5 py-2 rounded-xl text-xs font-black uppercase transition-all ${view === 'TASKS' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Obras</button>
         <button onClick=${() => setView('USERS')} className=${`px-5 py-2 rounded-xl text-xs font-black uppercase transition-all ${view === 'USERS' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Personal</button>
+        <button onClick=${() => setView('SETTINGS')} className=${`px-5 py-2 rounded-xl text-xs font-black uppercase transition-all ${view === 'SETTINGS' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Ajustes</button>
       </div>
 
       ${view === 'TASKS' && html`
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm animate-fade-in">
           <div className="p-6 flex justify-between items-center border-b bg-slate-50/50">
             <h2 className="font-black text-slate-800 uppercase italic">Control General</h2>
-            <button onClick=${() => { setTaskForm({title:'', description:'', assigned_to:'', estimated_time: 1}); setModalTask({show:true, mode:'create'}); }} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-indigo-100 active:scale-95 transition-all">
-              + Nueva Obra
-            </button>
+            <button onClick=${() => { setTaskForm({title:'', description:'', assigned_to:'', estimated_time: 1}); setModalTask({show:true, mode:'create'}); }} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-indigo-100 active:scale-95 transition-all">+ Nueva Obra</button>
           </div>
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
             ${tasks.map(t => {
@@ -317,13 +377,54 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, notify, co
         </div>
       `}
 
+      ${view === 'SETTINGS' && html`
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
+          <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+            <div className="p-6 border-b bg-slate-50/50"><h2 className="font-black text-slate-800 uppercase italic">Horario Laboral</h2></div>
+            <div className="p-6 space-y-3">
+              ${['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((name, i) => {
+                const day = settings.working_days[i] || { enabled: false, start: '08:00', end: '17:00' };
+                return html`
+                  <div key=${i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div className="flex items-center gap-3">
+                      <input type="checkbox" checked=${day.enabled} onChange=${e => updateSetting(i, 'enabled', e.target.checked)} className="w-5 h-5 rounded-md border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                      <span className="font-black text-xs uppercase text-slate-600 w-24">${name}</span>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <input type="time" disabled=${!day.enabled} value=${day.start} onChange=${e => updateSetting(i, 'start', e.target.value)} className="bg-white border border-slate-200 rounded-lg p-1 text-xs font-bold outline-none disabled:opacity-30" />
+                      <span className="text-[10px] font-black text-slate-300">-</span>
+                      <input type="time" disabled=${!day.enabled} value=${day.end} onChange=${e => updateSetting(i, 'end', e.target.value)} className="bg-white border border-slate-200 rounded-lg p-1 text-xs font-bold outline-none disabled:opacity-30" />
+                    </div>
+                  </div>
+                `;
+              })}
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm p-8 flex flex-col justify-center items-center text-center space-y-6">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-slate-800 uppercase italic">Backup y Resguardo</h3>
+              <p className="text-xs text-slate-400 mt-2">Descarga toda la base de datos o restaura una copia anterior.</p>
+            </div>
+            <div className="w-full space-y-3">
+              <button onClick=${exportBackup} className="w-full bg-slate-800 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl shadow-slate-200 active:scale-95 transition-all">Descargar Backup .JSON</button>
+              <button onClick=${() => fileInputRef.current.click()} className="w-full border-2 border-emerald-600 text-emerald-600 py-4 rounded-2xl font-black text-xs uppercase active:scale-95 transition-all">Restaurar de Backup</button>
+              <input type="file" ref=${fileInputRef} onChange=${importBackup} className="hidden" accept=".json" />
+            </div>
+          </div>
+        </div>
+      `}
+
       <!-- MODALES ADMINISTRATIVOS -->
       ${modalUser.show && html`
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-[40px] w-full max-sm shadow-2xl p-10 animate-fade-in-up">
             <h2 className="text-2xl font-black mb-8 italic uppercase text-indigo-700">${modalUser.mode === 'create' ? 'Alta Operario' : 'Modificar Perfil'}</h2>
             <form onSubmit=${saveUser} className="space-y-4">
-              <input className="w-full bg-slate-50 p-4 rounded-2xl outline-none border border-slate-100 font-bold" placeholder="Nombre de Usuario" value=${userForm.username} onChange=${e => setUserForm({...userForm, username: e.target.value})} required />
+              <input className="w-full bg-slate-50 p-4 rounded-2xl outline-none border border-slate-100 font-bold" placeholder="Usuario" value=${userForm.username} onChange=${e => setUserForm({...userForm, username: e.target.value})} required />
               <input className="w-full bg-slate-50 p-4 rounded-2xl outline-none border border-slate-100 font-bold" type="password" placeholder="Contraseña" value=${userForm.password} onChange=${e => setUserForm({...userForm, password: e.target.value})} required />
               <select className="w-full bg-slate-50 p-4 rounded-2xl outline-none border border-slate-100 font-bold text-xs" value=${userForm.role} onChange=${e => setUserForm({...userForm, role: e.target.value})}>
                 <option value=${Role.USER}>OPERARIO DE TALLER</option>
@@ -391,6 +492,7 @@ const App = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [users, setUsers] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [confirmation, setConfirmation] = useState({ show: false, title: '', message: '', onConfirm: null });
@@ -405,7 +507,13 @@ const App = () => {
       setLoading(true);
       const { data: u } = await supabase.from('users').select('*').order('username');
       const { data: t } = await supabase.from('tasks').select('*').order('created_at', { ascending: false });
-      setUsers(u || []); setTasks(t || []);
+      let { data: s } = await supabase.from('settings').select('*').maybeSingle();
+      if (!s) {
+        const initialDays = {"0":{"enabled":false,"start":"08:00","end":"17:00"},"1":{"enabled":true,"start":"08:00","end":"17:00"},"2":{"enabled":true,"start":"08:00","end":"17:00"},"3":{"enabled":true,"start":"08:00","end":"17:00"},"4":{"enabled":true,"start":"08:00","end":"17:00"},"5":{"enabled":true,"start":"08:00","end":"17:00"},"6":{"enabled":false,"start":"08:00","end":"17:00"}};
+        const { data: created } = await supabase.from('settings').insert([{ id: 1, working_days: initialDays }]).select();
+        s = created[0];
+      }
+      setUsers(u || []); setTasks(t || []); setSettings(s);
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
@@ -443,7 +551,7 @@ const App = () => {
         </div>
       </nav>
       <main className="flex-grow max-w-5xl mx-auto w-full p-6 pb-24">
-        ${currentUser.role === Role.ADMIN ? html`<${AdminDashboard} users=${users} setUsers=${setUsers} tasks=${tasks} setTasks=${setTasks} notify=${notify} confirm=${confirm} />` : html`<${UserDashboard} currentUser=${currentUser} tasks=${tasks} setTasks=${setTasks} notify=${notify} />`}
+        ${currentUser.role === Role.ADMIN ? html`<${AdminDashboard} users=${users} setUsers=${setUsers} tasks=${tasks} setTasks=${setTasks} settings=${settings} setSettings=${setSettings} notify=${notify} confirm=${confirm} />` : html`<${UserDashboard} currentUser=${currentUser} tasks=${tasks} setTasks=${setTasks} notify=${notify} />`}
       </main>
       <footer className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-slate-100 flex justify-between items-center px-8 z-[60]">
         <div className="text-[9px] text-slate-300 font-black uppercase tracking-widest">Automatizacion Cloud</div>
