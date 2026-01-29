@@ -12,17 +12,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // --- CONSTANTES ---
 const Role = { ADMIN: 'ADMIN', USER: 'USER' };
 const TaskStatus = { PENDING: 'PENDING', ACCEPTED: 'ACCEPTED', COMPLETED: 'COMPLETED' };
-const VERSION = "V1.4.2";
-
-const DEFAULT_WORKING_DAYS = {
-  0: { enabled: false, start: '08:00', end: '17:00' },
-  1: { enabled: true, start: '08:00', end: '17:00' },
-  2: { enabled: true, start: '08:00', end: '17:00' },
-  3: { enabled: true, start: '08:00', end: '17:00' },
-  4: { enabled: true, start: '08:00', end: '17:00' },
-  5: { enabled: true, start: '08:00', end: '17:00' },
-  6: { enabled: false, start: '08:00', end: '17:00' }
-};
+const VERSION = "V1.4.6";
 
 // --- UTILS ---
 const formatDuration = (ms) => {
@@ -37,6 +27,7 @@ const calculateEfficiency = (estimatedHours, acceptedAt, completedAt) => {
   if (!acceptedAt || !completedAt || !estimatedHours) return 100;
   const actualMs = new Date(completedAt) - new Date(acceptedAt);
   const estimatedMs = estimatedHours * 60 * 60 * 1000;
+  if (actualMs <= 0) return 100;
   if (actualMs <= estimatedMs) return 100;
   return Math.max(0, Math.round((estimatedMs / actualMs) * 100));
 };
@@ -98,12 +89,14 @@ const UserDashboard = ({ currentUser, tasks = [], setTasks, notify }) => {
   const updateStatus = async (id, status, extra = {}) => {
     if (status === TaskStatus.COMPLETED) {
       const task = tasks.find(t => t.id === id);
-      extra.efficiency = calculateEfficiency(task.estimated_time || 0, task.accepted_at, new Date().toISOString());
+      extra.efficiency = calculateEfficiency(task.estimated_time, task.accepted_at, new Date().toISOString());
     }
     const { data, error } = await supabase.from('tasks').update({ status, ...extra }).eq('id', id).select();
     if (!error && data) {
       setTasks(tasks.map(t => t.id === id ? data[0] : t));
       notify(status === TaskStatus.COMPLETED ? 'Obra finalizada' : 'Obra iniciada', 'success');
+    } else if (error) {
+      notify('Error al guardar: ' + error.message, 'error');
     }
   };
 
@@ -179,7 +172,7 @@ const UserDashboard = ({ currentUser, tasks = [], setTasks, notify }) => {
   `;
 };
 
-const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, setSettings, notify, confirm }) => {
+const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, notify, confirm }) => {
   const [view, setView] = useState('TASKS');
   const [modalUser, setModalUser] = useState({ show: false, mode: 'create', data: null });
   const [modalTask, setModalTask] = useState({ show: false, mode: 'create', data: null });
@@ -199,21 +192,50 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
 
   const saveUser = async (e) => {
     e.preventDefault();
-    if (modalUser.mode === 'edit') {
-      const { data, error } = await supabase.from('users').update(userForm).eq('id', modalUser.data.id).select();
-      if (!error && data) { setUsers(users.map(u => u.id === modalUser.data.id ? data[0] : u)); notify('Usuario actualizado', 'success'); }
-    } else {
-      const { data, error } = await supabase.from('users').insert([userForm]).select();
-      if (!error && data) { setUsers([...users, ...data]); notify('Usuario creado', 'success'); }
+    try {
+      if (modalUser.mode === 'edit') {
+        const { data, error } = await supabase.from('users').update(userForm).eq('id', modalUser.data.id).select();
+        if (error) throw error;
+        if (data) setUsers(users.map(u => u.id === modalUser.data.id ? data[0] : u));
+        notify('Usuario actualizado', 'success');
+      } else {
+        const { data, error } = await supabase.from('users').insert([userForm]).select();
+        if (error) throw error;
+        if (data) setUsers([...users, ...data]);
+        notify('Usuario creado', 'success');
+      }
+      setModalUser({ show: false });
+    } catch (err) {
+      notify('Error: ' + err.message, 'error');
     }
-    setModalUser({ show: false });
   };
 
   const saveTask = async (e) => {
     e.preventDefault();
-    const { data, error } = await supabase.from('tasks').insert([{ ...taskForm, status: TaskStatus.PENDING, progress_notes: '[]', efficiency: 100 }]).select();
-    if (!error && data) { setTasks([...tasks, ...data]); notify('Obra lanzada', 'success'); }
-    setModalTask({ show: false });
+    try {
+      // AHORA ENVIAMOS TODAS LAS COLUMNAS PORQUE EL SQL YA LAS CREÓ
+      const taskData = { 
+        ...taskForm,
+        status: TaskStatus.PENDING, 
+        progress_notes: '[]',
+        efficiency: 100
+      };
+      
+      const { data, error } = await supabase.from('tasks').insert([taskData]).select();
+      
+      if (error) {
+        notify('Error DB: ' + error.message, 'error');
+        return;
+      }
+
+      if (data) {
+        setTasks([data[0], ...tasks]);
+        notify('Obra registrada con éxito', 'success');
+        setModalTask({ show: false });
+      }
+    } catch (err) {
+      notify('Error inesperado', 'error');
+    }
   };
 
   return html`
@@ -221,7 +243,6 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
       <div className="flex gap-2 p-1.5 bg-white border border-slate-200 rounded-2xl w-fit mx-auto sm:mx-0 sticky top-20 z-40 shadow-sm backdrop-blur-md">
         <button onClick=${() => setView('TASKS')} className=${`px-5 py-2 rounded-xl text-xs font-black uppercase transition-all ${view === 'TASKS' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Obras</button>
         <button onClick=${() => setView('USERS')} className=${`px-5 py-2 rounded-xl text-xs font-black uppercase transition-all ${view === 'USERS' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Personal</button>
-        <button onClick=${() => setView('SETTINGS')} className=${`px-5 py-2 rounded-xl text-xs font-black uppercase transition-all ${view === 'SETTINGS' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Ajustes</button>
       </div>
 
       ${view === 'TASKS' && html`
@@ -240,7 +261,13 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
                 <div key=${t.id} className="p-6 border rounded-[28px] hover:border-indigo-200 transition-all bg-slate-50/30 group flex flex-col justify-between">
                   <div>
                     <div className="flex justify-between items-start mb-2">
-                      <div className="flex-1"><h3 className="font-black text-slate-800 text-sm uppercase">${t.title}</h3><div className="flex items-center gap-2 mt-1"><span className="text-[10px] text-indigo-500 font-bold">EST: ${t.estimated_time}HS</span>${t.status === TaskStatus.ACCEPTED && html`<${Timer} startTime=${t.accepted_at} />`}</div></div>
+                      <div className="flex-1">
+                        <h3 className="font-black text-slate-800 text-sm uppercase">${t.title}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[10px] text-indigo-500 font-bold">EST: ${t.estimated_time}HS</span>
+                          ${t.status === TaskStatus.ACCEPTED && html`<${Timer} startTime=${t.accepted_at} />`}
+                        </div>
+                      </div>
                       <div className="flex gap-2">
                         <button onClick=${() => setModalNotes({show:true, task:t})} className="text-slate-300 hover:text-indigo-600"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></button>
                         <button onClick=${() => confirm('¿Borrar obra?', 'No reversible.', async () => { await supabase.from('tasks').delete().eq('id', t.id); setTasks(tasks.filter(x => x.id !== t.id)); notify('Obra eliminada', 'success'); })} className="text-slate-300 hover:text-red-500"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
@@ -290,10 +317,10 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
         </div>
       `}
 
-      <!-- FORMULARIO MODAL USUARIO -->
+      <!-- MODALES ADMINISTRATIVOS -->
       ${modalUser.show && html`
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[40px] w-full max-w-sm shadow-2xl p-10 animate-fade-in-up">
+          <div className="bg-white rounded-[40px] w-full max-sm shadow-2xl p-10 animate-fade-in-up">
             <h2 className="text-2xl font-black mb-8 italic uppercase text-indigo-700">${modalUser.mode === 'create' ? 'Alta Operario' : 'Modificar Perfil'}</h2>
             <form onSubmit=${saveUser} className="space-y-4">
               <input className="w-full bg-slate-50 p-4 rounded-2xl outline-none border border-slate-100 font-bold" placeholder="Nombre de Usuario" value=${userForm.username} onChange=${e => setUserForm({...userForm, username: e.target.value})} required />
@@ -311,7 +338,6 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
         </div>
       `}
 
-      <!-- FORMULARIO MODAL OBRA -->
       ${modalTask.show && html`
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-[40px] w-full max-w-md shadow-2xl p-10 animate-fade-in-up">
@@ -335,7 +361,6 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
         </div>
       `}
 
-      <!-- BITÁCORA MODAL -->
       ${modalNotes.show && html`
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-[40px] w-full max-w-xl shadow-2xl p-10 animate-fade-in-up">
@@ -366,7 +391,6 @@ const App = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [users, setUsers] = useState([]);
   const [tasks, setTasks] = useState([]);
-  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [confirmation, setConfirmation] = useState({ show: false, title: '', message: '', onConfirm: null });
@@ -381,9 +405,7 @@ const App = () => {
       setLoading(true);
       const { data: u } = await supabase.from('users').select('*').order('username');
       const { data: t } = await supabase.from('tasks').select('*').order('created_at', { ascending: false });
-      let { data: s } = await supabase.from('settings').select('*').maybeSingle();
-      if (!s) s = { id: 1, working_days: DEFAULT_WORKING_DAYS };
-      setUsers(u || []); setTasks(t || []); setSettings(s);
+      setUsers(u || []); setTasks(t || []);
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
@@ -421,7 +443,7 @@ const App = () => {
         </div>
       </nav>
       <main className="flex-grow max-w-5xl mx-auto w-full p-6 pb-24">
-        ${currentUser.role === Role.ADMIN ? html`<${AdminDashboard} users=${users} setUsers=${setUsers} tasks=${tasks} setTasks=${setTasks} settings=${settings} setSettings=${setSettings} notify=${notify} confirm=${confirm} />` : html`<${UserDashboard} currentUser=${currentUser} tasks=${tasks} setTasks=${setTasks} notify=${notify} />`}
+        ${currentUser.role === Role.ADMIN ? html`<${AdminDashboard} users=${users} setUsers=${setUsers} tasks=${tasks} setTasks=${setTasks} notify=${notify} confirm=${confirm} />` : html`<${UserDashboard} currentUser=${currentUser} tasks=${tasks} setTasks=${setTasks} notify=${notify} />`}
       </main>
       <footer className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-slate-100 flex justify-between items-center px-8 z-[60]">
         <div className="text-[9px] text-slate-300 font-black uppercase tracking-widest">Automatizacion Cloud</div>
