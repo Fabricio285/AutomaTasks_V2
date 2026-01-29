@@ -13,7 +13,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // --- CONSTANTES ---
 const Role = { ADMIN: 'ADMIN', USER: 'USER' };
 const TaskStatus = { PENDING: 'PENDING', ACCEPTED: 'ACCEPTED', COMPLETED: 'COMPLETED' };
-const VERSION = "V1.5.2";
+const VERSION = "V1.5.3";
 
 // --- UTILS ---
 const formatDuration = (ms) => {
@@ -497,7 +497,12 @@ const AdminDashboard = ({ users = [], setUsers, tasks = [], setTasks, settings, 
 // --- APLICACIÓN PRINCIPAL ---
 
 const App = () => {
-  const [currentUser, setCurrentUser] = useState(null);
+  // PERSISTENCIA: Inicializar desde localStorage
+  const [currentUser, setCurrentUser] = useState(() => {
+    const saved = localStorage.getItem('automatizacion_session');
+    return saved ? JSON.parse(saved) : null;
+  });
+
   const [users, setUsers] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [settings, setSettings] = useState(null);
@@ -537,6 +542,8 @@ const App = () => {
           e.preventDefault();
           const user = users.find(x => x.username === e.target.u.value && x.password === e.target.p.value);
           if (user) {
+            // Guardar sesión persistente
+            localStorage.setItem('automatizacion_session', JSON.stringify(user));
             setCurrentUser(user);
           } else {
             notify('Credenciales Incorrectas', 'error');
@@ -562,7 +569,10 @@ const App = () => {
             <p className="text-xs font-black uppercase text-slate-700 leading-none">${currentUser.username}</p>
             <p className="text-[9px] text-indigo-500 font-black uppercase tracking-widest mt-1">${currentUser.role}</p>
           </div>
-          <button onClick=${() => confirm('¿Cerrar Sesión?', 'Desea salir del terminal actual.', () => setCurrentUser(null))} className="p-2.5 bg-slate-50 rounded-xl text-slate-400 hover:text-red-500 active:scale-90 transition-all border border-slate-100"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 16l4-4m4 4H7"/></svg></button>
+          <button onClick=${() => confirm('¿Cerrar Sesión?', 'Desea salir del terminal actual.', () => {
+            localStorage.removeItem('automatizacion_session');
+            setCurrentUser(null);
+          })} className="p-2.5 bg-slate-50 rounded-xl text-slate-400 hover:text-red-500 active:scale-90 transition-all border border-slate-100"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 16l4-4m4 4H7"/></svg></button>
         </div>
       </nav>
       <main className="flex-grow max-w-5xl mx-auto w-full p-6 pb-24">
